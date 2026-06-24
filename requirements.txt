@@ -1,0 +1,27 @@
+# Core
+pandas
+numpy
+Pillow
+requests
+tqdm
+
+# Computer vision / detection
+torch
+torchvision
+transformers          # Grounding-DINO, LLaVA, InternVL, Qwen-VL
+insightface           # face detection + ArcFace embeddings (buffalo_l model)
+onnxruntime           # InsightFace CPU inference backend
+
+# Proprietary VLM APIs (Princeton AI Sandbox via Portkey gateway)
+portkey-ai            # all api-route models (GPT/Gemini/Claude/Llama/Mistral)
+sentence-transformers # text embeddings for VLM-assisted object re-clustering
+
+# NLP / metrics
+nltk                  # BLEU, METEOR, tokenization
+rouge-score           # ROUGE
+spacy                 # noun phrase extraction for entity alignment
+pycocoevalcap         # CIDEr, SPICE (requires Java for SPICE)
+
+# Analysis
+scipy                 # Spearman correlation
+scikit-learn
