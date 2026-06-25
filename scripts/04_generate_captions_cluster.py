@@ -38,8 +38,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import datetime
 from pathlib import Path
+
+# Reduce CUDA fragmentation (multi-image visual_aux is memory-spiky). Must be set
+# before torch initializes CUDA — keep this above `import torch`.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import pandas as pd
 import torch
@@ -230,7 +235,14 @@ def load_internvl(model_id: str):
 
 def generate_internvl(model, tokenizer, images: list, prompt: str) -> dict:
     dtype = next(model.parameters()).dtype
-    pv_list = [_internvl_pixel_values(img).to(dtype).to(model.device) for img in images]
+    # Multi-image (visual_aux) explodes the tile count -> CUDA OOM: each image is
+    # dynamically tiled into up to ~13 crops, so 6 images can become ~78 tiles.
+    # Cap crops at 1 tile each; the main image keeps a normal (but smaller) budget.
+    multi = len(images) > 1
+    pv_list = []
+    for i, img in enumerate(images):
+        mx = 12 if not multi else (6 if i == 0 else 1)
+        pv_list.append(_internvl_pixel_values(img, max_num=mx).to(dtype).to(model.device))
     num_patches_list = [pv.size(0) for pv in pv_list]
     pixel_values = torch.cat(pv_list, dim=0)
 
@@ -246,6 +258,8 @@ def generate_internvl(model, tokenizer, images: list, prompt: str) -> dict:
         tokenizer, pixel_values, question, gen_config,
         num_patches_list=num_patches_list, history=None, return_history=False,
     )
+    del pixel_values, pv_list          # release tiles before the next image
+    torch.cuda.empty_cache()
     return {"caption": caption.strip(), "prompt_tokens": None, "completion_tokens": None}
 
 
@@ -340,6 +354,8 @@ def run_model(model_name: str, conditions: list, image_ids: set = None,
                 ok += 1
             except Exception as e:
                 print(f"  ERROR {image_id} [{condition}]: {e}")
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
         total_ok += ok
         print(f"  {ok}/{len(remaining)} succeeded for {condition}")
 

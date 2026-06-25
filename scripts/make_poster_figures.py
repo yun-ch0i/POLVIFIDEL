@@ -28,19 +28,35 @@ CONDS = ["baseline", "textual_aux", "visual_aux", "annotated_aux"]
 CLAB = ["Base", "Text", "Visual", "Annot"]
 W = 0.38
 
+# Four models: API (blues) vs. open-source (warm) so the split reads visually.
+MODELS = ["gemini", "gpt4o", "internvl", "qwen"]
+MLAB = ["Gemini", "GPT-4o", "InternVL", "Qwen"]
+MCOLORS = ["#5B9BD5", "#1F3A5F", "#C0703A", "#6F8F3F"]
+
+
+def _grouped(values_by_model, ylabel, title, fname, human=None):
+    """values_by_model: dict model -> [4 condition values]. Grouped bar chart."""
+    fig, ax = plt.subplots(figsize=(8.2, 5)); x = np.arange(len(CONDS))
+    n = len(MODELS); bw = 0.8 / n
+    for i, m in enumerate(MODELS):
+        off = (i - (n - 1) / 2) * bw
+        ax.bar(x + off, values_by_model[m], bw, label=MLAB[i], color=MCOLORS[i])
+    if human is not None:
+        ax.axhline(human, color=RED, lw=2.5, ls="--")
+        ax.text(len(CONDS) - 0.55, human + 0.004, f"human {human:.2f}",
+                color=RED, ha="right", fontsize=14, fontweight="bold")
+    ax.set_xticks(x); ax.set_xticklabels(CLAB); ax.set_ylabel(ylabel)
+    ax.set_title(title, fontweight="bold")
+    ax.legend(frameon=False, ncol=2, fontsize=15)
+    ax.spines[["top", "right"]].set_visible(False)
+    fig.savefig(FIGDIR / fname); plt.close(fig)
+
 
 def rq2():
-    s = pd.read_csv(METRICS_DIR / "summary_covered.csv")
-    val = lambda m, c: float(s[(s.model == m) & (s.condition == c)]["polvifidel"])
-    gem = [val("gemini", c) for c in CONDS]
-    gpt = [val("gpt4o", c) for c in CONDS]
-    fig, ax = plt.subplots(figsize=(7, 5)); x = np.arange(4)
-    ax.bar(x - W / 2, gem, W, label="Gemini", color=MID)
-    ax.bar(x + W / 2, gpt, W, label="GPT-4o", color=NAVY)
-    ax.set_xticks(x); ax.set_xticklabels(CLAB); ax.set_ylabel("POLVIFIDEL")
-    ax.set_title("Fidelity by prompting condition", fontweight="bold")
-    ax.legend(frameon=False); ax.spines[["top", "right"]].set_visible(False)
-    fig.savefig(FIGDIR / "fig_rq2_polvifidel.png"); plt.close(fig)
+    d = pd.read_csv(METRICS_DIR / "metrics.csv")
+    piv = d.pivot_table(index="model", columns="condition", values="polvifidel", aggfunc="mean")
+    vals = {m: [float(piv.loc[m, c]) for c in CONDS] for m in MODELS}
+    _grouped(vals, "POLVIFIDEL", "Fidelity by prompting condition", "fig_rq2_polvifidel.png")
 
 
 def rq3():
@@ -48,18 +64,10 @@ def rq3():
     def nmi(m, c):
         r = t[(t.model == m) & (t.condition == c)]
         return float(r["nmi_cell_mean"]) if len(r) else np.nan
-    gem = [nmi("gemini", c) for c in CONDS]; gpt = [nmi("gpt4o", c) for c in CONDS]
+    vals = {m: [nmi(m, c) for c in CONDS] for m in MODELS}
     human = float(t[t.model == "nyt"]["nmi_cell_mean"])
-    fig, ax = plt.subplots(figsize=(7, 5)); x = np.arange(4)
-    ax.bar(x - W / 2, gem, W, label="Gemini", color=MID)
-    ax.bar(x + W / 2, gpt, W, label="GPT-4o", color=NAVY)
-    ax.axhline(human, color=RED, lw=2.5, ls="--")
-    ax.text(3.4, human + 0.004, f"human {human:.2f}", color=RED, ha="right",
-            fontsize=14, fontweight="bold")
-    ax.set_xticks(x); ax.set_xticklabels(CLAB); ax.set_ylabel("Topic NMI vs. cells")
-    ax.set_title("Downstream topic alignment", fontweight="bold")
-    ax.legend(frameon=False, loc="upper center"); ax.spines[["top", "right"]].set_visible(False)
-    fig.savefig(FIGDIR / "fig_rq3_nmi.png"); plt.close(fig)
+    _grouped(vals, "Topic NMI vs. cells", "Downstream topic alignment",
+             "fig_rq3_nmi.png", human=human)
 
 
 def rq4():
