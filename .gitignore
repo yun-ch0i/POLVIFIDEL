@@ -217,3 +217,9 @@ __marimo__/
 
 data/
 outputs/
+
+# Kept private until ready to publish (manuscript + poster + figures)
+paper/
+
+# Too large for GitHub (150+ MB notebook with embedded outputs); use git-lfs if needed
+scripts/GroudingDINO+SAM+clustering.ipynb
